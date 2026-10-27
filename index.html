@@ -876,7 +876,7 @@ function updatePB(dt) {
 function hurtPlayer(n, msg) {
   const p = G.p; if (p.inv > 0 || p.dashing > 0 || G.state !== 'play') return;
   if (p.dodge && Math.random() < p.dodge) { floatText(p.x, p.y - 24, 'THROUGH THE HOLES', '#E8A900'); p.inv = 0.4; return; }
-  p.hp -= n; p.inv = 1.0; G.shake = 9; G.hurtFlash = 0.3; sfx('hurt'); puff(p.x, p.y, '#E3001B', 10);
+  p.hp -= n; p.inv = G.boss && !G.boss.dead ? 1.4 : 1.0; G.shake = 9; G.hurtFlash = 0.3; sfx('hurt'); puff(p.x, p.y, '#E3001B', 10);
   if (msg) floatText(p.x, p.y - 26, msg, '#E3001B');
   if (p.hp <= 0) {
     if (p.encore) { p.encore = 0; p.hp = 3; p.inv = 2.5; floatText(p.x, p.y - 30, 'ENCORE!', '#1C6DB0'); G.eb = []; sfx('level'); }
@@ -910,7 +910,7 @@ function spawnEnemy(type, x, y, elite) {
     st: 0, stT: rand(0.6, 1.2), ang: 0, elite, slow: 0, flash: 0, fly: !!d.fly, kb: { x: 0, y: 0 }, orb: rand(0, TAU), seed: Math.random() };
   e.maxHp = e.hp; G.enemies.push(e); return e;
 }
-function eb(x, y, a, spd, o) { const b = Object.assign({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: 6, dmg: 1, col: '#E3001B', kind: 'dot', life: 7 }, o || {}); G.eb.push(b); return b; }
+function eb(x, y, a, spd, o) { const k = G.boss && !G.boss.dead ? 0.82 : 1; spd *= k; const b = Object.assign({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: 6, dmg: 1, col: '#E3001B', kind: 'dot', life: 7 }, o || {}); if (b.spd2) b.spd2 *= k; G.eb.push(b); return b; }
 function ring(x, y, n, spd, off, o) { for (let i = 0; i < n; i++) eb(x, y, (off || 0) + i * TAU / n, spd, o); }
 function fan(x, y, a, n, spread, spd, o) { for (let i = 0; i < n; i++) eb(x, y, a + (n > 1 ? -spread / 2 + spread * i / (n - 1) : 0), spd, o); }
 
@@ -1069,7 +1069,7 @@ const BOSSES = {};
 function bossCore(o) {
   const b = Object.assign({ x: CX, y: AY0 + 120, r: 26, spd: 90, mode: 'drift', t: 0, gen: null, wait: 0, cool: 1.8, coolBase: 1.4, last: '', bubble: '', bubbleT: 0, inv: false, flash: 0, dead: false, vuln: 1, quipT: 4, touch: 1 }, o);
   b.boss = b;
-  b.maxHp = b.hp = Math.round(b.hp * (1 + G.run.d * 0.3));
+  b.maxHp = b.hp = Math.round(b.hp * 0.75 * (1 + G.run.d * 0.22));
   b.bodies = () => b.hidden ? [] : [b];
   b.hurt = (d, body) => bossHurt(b, d, body);
   return b;
@@ -1089,7 +1089,7 @@ function updateBoss(dt) {
   if (b.tick) b.tick(dt); else bossMove(b, dt);
   if (b.gen) {
     b.wait -= dt;
-    while (b.gen && b.wait <= 0) { const r = b.gen.next(); if (r.done) { b.gen = null; b.cool = b.coolBase * (b.hp < b.maxHp * 0.5 ? 0.7 : 1); } else b.wait += r.value || 0; }
+    while (b.gen && b.wait <= 0) { const r = b.gen.next(); if (r.done) { b.gen = null; b.cool = b.coolBase * 1.4 * (b.hp < b.maxHp * 0.5 ? 0.85 : 1); } else b.wait += r.value || 0; }
   } else {
     b.cool -= dt;
     if (b.cool <= 0) { const name = b.choose ? b.choose() : chooseAttack(b); b.last = name; b.gen = b.attacks[name](b); b.wait = 0; }
@@ -1138,13 +1138,13 @@ BOSSES.prof = () => {
   b.attacks = {
     DOA: function* () { say(b, 'D.O.A.!'); b.mode = 'still'; yield 0.5; for (let k = 0; k < 3; k++) { ring(b.x, b.y, 18, 150 + k * 22, k * 0.17, { kind: 'note', col: INK }); sfx('boom'); yield 0.35; } b.mode = 'drift'; yield 0.5; },
     MINDSNARE: function* () { say(b, 'MINDSNARE!'); for (let k = 0; k < 5; k++) { eb(b.x, b.y, angTo(b, G.p) + rand(-1.1, 1.1), 125, { home: 1.7, slow: 1.6, col: '#7B3FA0', kind: 'snare', life: 5, r: 8, msg: 'SNARED' }); yield 0.22; } yield 0.8; },
-    TOE: function* () { say(b, 'TOE TO TOE!'); for (let k = 0; k < 3; k++) { yield* dashAt(b, 580, 0.55); ring(b.x, b.y, 10, 140, 0, { col: INK, kind: 'note' }); yield 0.25; } b.mode = 'drift'; },
-    PROPAGANDHI: function* () { say(b, 'PROPAGANDHI!'); b.mode = 'drift'; for (let k = 0; k < 13; k++) { const near = k % 3 === 0, s = near ? G.p : randSpot(); warnCircle(s.x + (near ? rand(-20, 20) : 0), s.y + (near ? rand(-20, 20) : 0), 46, 0.95, 1, { label: 'FLYER' }); yield 0.14; } yield 0.9; },
+    TOE: function* () { say(b, 'TOE TO TOE!'); for (let k = 0; k < 3; k++) { yield* dashAt(b, 580, 0.7); ring(b.x, b.y, 10, 140, 0, { col: INK, kind: 'note' }); yield 0.25; } b.mode = 'drift'; },
+    PROPAGANDHI: function* () { say(b, 'PROPAGANDHI!'); b.mode = 'drift'; for (let k = 0; k < 13; k++) { const near = k % 3 === 0, s = near ? G.p : randSpot(); warnCircle(s.x + (near ? rand(-20, 20) : 0), s.y + (near ? rand(-20, 20) : 0), 46, 1.15, 1, { label: 'FLYER' }); yield 0.14; } yield 0.9; },
     BATS: function* () { say(b, 'CANCER BATS!'); for (let k = 0; k < 4; k++) spawnEnemy('bat', b.x + rand(-30, 30), b.y + rand(-10, 30)); yield 1.2; },
-    SNFU: function* () { say(b, 'SNFU!'); b.mode = 'still'; for (let k = 0; k < 38; k++) { eb(b.x, b.y, rand(0, TAU), rand(110, 230), { col: pick([INK, '#E3001B', '#1C6DB0']) }); if (k % 4 === 0) sfx('shoot'); yield 0.05; } b.mode = 'drift'; yield 0.5; },
+    SNFU: function* () { say(b, 'SNFU!'); b.mode = 'still'; for (let k = 0; k < 26; k++) { eb(b.x, b.y, rand(0, TAU), rand(110, 230), { col: pick([INK, '#E3001B', '#1C6DB0']) }); if (k % 4 === 0) sfx('shoot'); yield 0.05; } b.mode = 'drift'; yield 0.5; },
     NOWARNING: function* () { say(b, 'NO WARNING!', 1.1); b.mode = 'still'; yield 1.1; say(b, '...okay, a little bit of warning.', 1.5); yield 0.9; for (let k = 0; k < 3; k++) { fan(b.x, b.y, angTo(b, G.p), 7, 0.7, 260, { col: '#E3001B' }); sfx('boom'); yield 0.4; } b.mode = 'drift'; },
     IRONMIND: function* () { say(b, 'IRON MIND.'); b.inv = true; b.mode = 'still'; for (let k = 0; k < 30; k++) { for (let a = 0; a < 3; a++) eb(b.x, b.y, k * 0.23 + a * TAU / 3, 165, { col: '#5B625B' }); yield 0.08; } b.inv = false; b.mode = 'drift'; yield 0.4; },
-    EXTORTION: function* () { say(b, 'EXTORTION!'); b.mode = 'still'; const a0 = angTo(b, G.p); for (let k = 0; k < 4; k++) { const a = a0 + (k - 1.5) * 0.38; warnLine(b.x, b.y, b.x + Math.cos(a) * 1100, b.y + Math.sin(a) * 1100, 28, 0.85, 1); } yield 1.1; b.mode = 'drift'; },
+    EXTORTION: function* () { say(b, 'EXTORTION!'); b.mode = 'still'; const a0 = angTo(b, G.p); for (let k = 0; k < 4; k++) { const a = a0 + (k - 1.5) * 0.38; warnLine(b.x, b.y, b.x + Math.cos(a) * 1100, b.y + Math.sin(a) * 1100, 28, 1.05, 1); } yield 1.3; b.mode = 'drift'; },
     SPEED: function* () { say(b, 'SPEED!'); b.spdMul = 3; b.mode = 'chase'; for (let k = 0; k < 8; k++) { fan(b.x, b.y, angTo(b, G.p), 3, 0.4, 220, { col: INK }); yield 0.25; } b.spdMul = 1; b.mode = 'drift'; yield 0.4; },
     COMEBACK: function* () { b.cb = true; say(b, 'COMEBACK KID!!', 2); b.inv = true; b.mode = 'still'; yield 1.0; b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.15); floatText(b.x, b.y - 50, '+15% HP', '#E3001B'); ring(b.x, b.y, 24, 160, 0, { kind: 'note', col: INK }); b.inv = false; b.mode = 'drift'; yield 0.4; }
   };
@@ -1191,11 +1191,11 @@ BOSSES.parents = () => {
   const owner = { CASSEROLE: 'mum', KNITTING: 'mum', PHOTOS: 'mum', LAWNMOWER: 'dad', SLIDESHOW: 'dad', BACKINMYDAY: 'dad', CARKEYS: 'both' };
   b.skip = k => owner[k] === 'both' ? b.bodies().length < 2 : b[owner[k]].hp <= 0;
   b.attacks = {
-    CASSEROLE: function* () { const m = b.mum; say(m, 'Casserole! Still warm!'); for (let k = 0; k < 4; k++) { const x = clamp(G.p.x + rand(-70, 70), AX0 + 30, AX1 - 30), y = clamp(G.p.y + rand(-70, 70), AY0 + 30, AY1 - 30); warnCircle(x, y, 50, 1.0, 1, { onDone: () => ring(x, y, 6, 120, rand(0, 1), { col: '#6BA539', kind: 'pea', r: 5 }) }); yield 0.35; } yield 0.6; },
+    CASSEROLE: function* () { const m = b.mum; say(m, 'Casserole! Still warm!'); for (let k = 0; k < 4; k++) { const x = clamp(G.p.x + rand(-70, 70), AX0 + 30, AX1 - 30), y = clamp(G.p.y + rand(-70, 70), AY0 + 30, AY1 - 30); warnCircle(x, y, 50, 1.2, 1, { onDone: () => ring(x, y, 6, 120, rand(0, 1), { col: '#6BA539', kind: 'pea', r: 5 }) }); yield 0.35; } yield 0.6; },
     KNITTING: function* () { const m = b.mum; say(m, 'Knit one, purl one!'); for (let k = 0; k < 3; k++) { if (m.hp <= 0) break; fan(m.x, m.y, angTo(m, G.p), 7, 0.9, 290, { kind: 'needle', col: '#8A6FB8', r: 5 }); sfx('shoot'); yield 0.4; } },
     PHOTOS: function* () { const m = b.mum; say(m, 'Here\'s Tristan at your age!'); m.mode = 'still'; for (let k = 0; k < 4; k++) { if (m.hp <= 0) break; ring(m.x, m.y, 12, 95, k * 0.26, { kind: 'photo', col: '#FFFFFF', r: 8 }); yield 0.45; } m.mode = 'drift'; },
-    LAWNMOWER: function* () { const d = b.dad; say(d, 'Mind the lawn!'); for (let k = 0; k < 2; k++) { if (d.hp <= 0) break; yield* dashAt(d, 470, 0.7, (o, a) => { if (Math.random() < 0.5) for (const s of [-1, 1]) eb(o.x, o.y, a + s * Math.PI / 2, 70, { kind: 'grass', col: '#4E9A3A', r: 4, life: 3 }); }); yield 0.3; } d.mode = 'drift'; },
-    SLIDESHOW: function* () { const d = b.dad; say(d, 'Our trip to Lucerne. Slide 1 of 240.'); d.mode = 'still'; for (let k = 0; k < 3; k++) { if (d.hp <= 0) break; const a = angTo(d, G.p); warnLine(d.x, d.y, d.x + Math.cos(a) * 1100, d.y + Math.sin(a) * 1100, 56, 0.75, 1, { col: '#E8A900', msg: 'SLIDE 2' }); yield 0.55; } d.mode = 'drift'; yield 0.4; },
+    LAWNMOWER: function* () { const d = b.dad; say(d, 'Mind the lawn!'); for (let k = 0; k < 2; k++) { if (d.hp <= 0) break; yield* dashAt(d, 470, 0.85, (o, a) => { if (Math.random() < 0.5) for (const s of [-1, 1]) eb(o.x, o.y, a + s * Math.PI / 2, 70, { kind: 'grass', col: '#4E9A3A', r: 4, life: 3 }); }); yield 0.3; } d.mode = 'drift'; },
+    SLIDESHOW: function* () { const d = b.dad; say(d, 'Our trip to Lucerne. Slide 1 of 240.'); d.mode = 'still'; for (let k = 0; k < 3; k++) { if (d.hp <= 0) break; const a = angTo(d, G.p); warnLine(d.x, d.y, d.x + Math.cos(a) * 1100, d.y + Math.sin(a) * 1100, 56, 0.95, 1, { col: '#E8A900', msg: 'SLIDE 2' }); yield 0.7; } d.mode = 'drift'; yield 0.4; },
     BACKINMYDAY: function* () {
       const d = b.dad; say(d, 'Back in my day...', 2); const txt = 'BACK IN MY DAY WE HAD MANNERS ';
       for (let row = 0; row < 2; row++) { const gap = rand(AX0 + 80, AX1 - 80); let i = 0; for (let x = AX0 + 16; x < AX1; x += 34) { if (Math.abs(x - gap) < 60) continue; eb(x, AY0 + 8, Math.PI / 2, 105, { kind: 'letter', ch: txt[i++ % txt.length], col: INK, r: 9, ghost: true, life: 7 }); } yield 1.4; }
@@ -1231,17 +1231,17 @@ BOSSES.van = () => {
   b.note = 'Small, fast and armed. Every get-rich-quick scheme is a different knife pattern.';
   b.outro = () => 'Van drops the knife. "This is a pivot, not a loss," she says, and drives off in a leased convertible.';
   b.attacks = {
-    HUSTLE: function* () { say(b, 'Rise and grind!'); for (let k = 0; k < 4; k++) { yield* dashAt(b, 720, 0.42); fan(b.x, b.y, angTo(b, G.p), 5, 0.6, 240, { kind: 'knife', col: '#B8BEC6' }); yield 0.15; } b.mode = 'drift'; },
+    HUSTLE: function* () { say(b, 'Rise and grind!'); for (let k = 0; k < 4; k++) { yield* dashAt(b, 720, 0.55); fan(b.x, b.y, angTo(b, G.p), 5, 0.6, 240, { kind: 'knife', col: '#B8BEC6' }); yield 0.15; } b.mode = 'drift'; },
     PASSIVE: function* () { say(b, 'Passive income, baby!'); b.mode = 'still'; for (let w = 0; w < 2; w++) { for (let i = 0; i < 8; i++) eb(b.x, b.y, 0, 0, { kind: 'knife', col: '#B8BEC6', orb: { ox: b.x, oy: b.y, a: i * TAU / 8 + w * 0.4, rad: 20, w: w ? -2.2 : 2.2, g: 170, t: 0, turn: 1.5 } }); yield 0.5; } yield 2.4; b.mode = 'drift'; },
     DIP: function* () {
       say(b, 'Buy the dip!'); yield 0.4; b.hidden = true; puff(b.x, b.y, '#8C7B57', 16);
       for (let k = 0; k < 2; k++) {
-        for (let t = 0; t < 1.4; t += 0.05) { const a = angTo(b, G.p); b.x += Math.cos(a) * 260 * 0.05; b.y += Math.sin(a) * 260 * 0.05; G.parts.push({ x: b.x + rand(-8, 8), y: b.y + rand(-4, 8), vx: rand(-30, 30), vy: rand(-40, -10), life: 0.4, max: 0.4, col: '#8C7B57', size: 3 }); yield 0.05; }
-        warnCircle(b.x, b.y, 58, 0.45, 1, { msg: 'BOUGHT THE DIP' }); yield 0.45; b.hidden = false; ring(b.x, b.y, 14, 210, rand(0, 1), { kind: 'knife', col: '#B8BEC6' }); if (k === 0) { yield 0.4; b.hidden = true; }
+        for (let t = 0; t < 1.4; t += 0.05) { const a = angTo(b, G.p); b.x += Math.cos(a) * 200 * 0.05; b.y += Math.sin(a) * 200 * 0.05; G.parts.push({ x: b.x + rand(-8, 8), y: b.y + rand(-4, 8), vx: rand(-30, 30), vy: rand(-40, -10), life: 0.4, max: 0.4, col: '#8C7B57', size: 3 }); yield 0.05; }
+        warnCircle(b.x, b.y, 58, 0.6, 1, { msg: 'BOUGHT THE DIP' }); yield 0.6; b.hidden = false; ring(b.x, b.y, 14, 210, rand(0, 1), { kind: 'knife', col: '#B8BEC6' }); if (k === 0) { yield 0.4; b.hidden = true; }
       }
       b.mode = 'drift'; yield 0.3;
     },
-    DROPSHIP: function* () { say(b, 'Dropshipping! Zero inventory!'); for (let k = 0; k < 10; k++) { const near = k % 3 === 0, s = near ? G.p : randSpot(); const x = clamp(s.x - 28, AX0, AX1 - 56), y = clamp(s.y - 28, AY0, AY1 - 56); warnRect(x, y, 56, 56, 1.0, 1, { col: '#A87C00', label: 'BOX', onDone: () => ring(x + 28, y + 28, 4, 130, Math.PI / 4, { kind: 'coin', col: '#D4A72C' }) }); yield 0.16; } yield 0.8; },
+    DROPSHIP: function* () { say(b, 'Dropshipping! Zero inventory!'); for (let k = 0; k < 10; k++) { const near = k % 3 === 0, s = near ? G.p : randSpot(); const x = clamp(s.x - 28, AX0, AX1 - 56), y = clamp(s.y - 28, AY0, AY1 - 56); warnRect(x, y, 56, 56, 1.2, 1, { col: '#A87C00', label: 'BOX', onDone: () => ring(x + 28, y + 28, 4, 130, Math.PI / 4, { kind: 'coin', col: '#D4A72C' }) }); yield 0.16; } yield 0.8; },
     PYRAMID: function* () { say(b, 'It\'s not a pyramid. It\'s a triangle of opportunity.', 2.6); b.mode = 'still'; const a = angTo(b, G.p), px = Math.cos(a + Math.PI / 2), py = Math.sin(a + Math.PI / 2); for (let row = 0; row < 5; row++) { for (let i = 0; i <= row; i++) { const off = (i - row / 2) * 22; eb(b.x + px * off, b.y + py * off, a, 250, { kind: 'knife', col: '#B8BEC6' }); } sfx('shoot'); yield 0.13; } yield 0.4; b.mode = 'drift'; },
     COMPOUND: function* () { say(b, 'Compound interest!'); for (let k = 0; k < 2; k++) { fan(b.x, b.y, angTo(b, G.p), 4, 0.9, 180, { kind: 'coin', col: '#D4A72C', r: 7, split: { t: 0.6, n: 2 } }); yield 0.7; } },
     COURSE: function* () { say(b, 'Sign up to my course!'); for (let k = 0; k < 6; k++) { eb(b.x, b.y, angTo(b, G.p) + rand(-1.4, 1.4), 120, { kind: 'flyer', col: '#FFFFFF', home: 1.5, slow: 2, life: 4.5, r: 7, msg: 'ENROLLED' }); yield 0.18; } yield 0.6; }
@@ -1395,7 +1395,7 @@ BOSSES.nan = () => {
   };
   const effect = (i, c) => {
     const x = tileX(i), y = rowY(b.row);
-    if (c === 'g') warnRect(x, AY0, TS, AY1 - AY0, 0.85, 1, { col: '#3A9D5D', msg: 'GREEN' });
+    if (c === 'g') warnRect(x, AY0, TS, AY1 - AY0, 1.1, 1, { col: '#3A9D5D', msg: 'GREEN' });
     else if (c === 'y') ring(x + TS / 2, y + TS / 2, 6, 125, rand(0, 1), { kind: 'yarn', col: '#D9A400', r: 6 });
     else puff(x + TS / 2, y + TS / 2, '#8A8F8A', 5);
   };
@@ -1414,10 +1414,10 @@ BOSSES.nan = () => {
       const greens = fb.split('').filter(c => c === 'g').length;
       if (greens === 5) {
         b.streak++; say(b, `LINED UP! In ${b.row + 1}. Streak: ${b.streak}.`, 3); b.state = 'gloat'; yield 0.6;
-        for (let j = 0; j < 6; j++) warnRect(AX0, rowY(j), AX1 - AX0, TS, j % 2 ? 1.9 : 1.1, 1, { col: '#3A9D5D', msg: 'LINED UP' });
-        yield 2.3; reset();
+        for (let j = 0; j < 6; j++) warnRect(AX0, rowY(j), AX1 - AX0, TS, j % 2 ? 2.4 : 1.4, 1, { col: '#3A9D5D', msg: 'LINED UP' });
+        yield 2.8; reset();
       } else {
-        if (greens >= 3) { say(b, 'Ooh, nearly. Mind your toes.', 1.8); warnRect(AX0, rowY(b.row), AX1 - AX0, TS, 1.0, 1, { col: '#3A9D5D', msg: 'LINED UP' }); yield 0.6; }
+        if (greens >= 3) { say(b, 'Ooh, nearly. Mind your toes.', 1.8); warnRect(AX0, rowY(b.row), AX1 - AX0, TS, 1.3, 1, { col: '#3A9D5D', msg: 'LINED UP' }); yield 0.6; }
         b.row++;
         if (b.row >= 6) { say(b, 'Oh, bother. I\'ll get it tomorrow.', 3); b.state = 'flustered'; b.vuln = 2; floatText(b.x, b.y - 60, 'FLUSTERED: DOUBLE DAMAGE', '#E3001B'); yield 4.2; b.vuln = 1; reset(); }
       }
@@ -1497,9 +1497,9 @@ BOSSES.nick = () => {
       say(b, 'SEND IT!', 1.2); yield 0.45; yield* leave();
       for (let k = 0; k < 3; k++) {
         const y = k === 1 ? rand(AY0 + 60, AY1 - 60) : clamp(G.p.y, AY0 + 40, AY1 - 40), dir = Math.random() < 0.5 ? 1 : -1;
-        warnRect(AX0, y - 30, AX1 - AX0, 60, 0.85, 0, { label: dir > 0 ? 'SEND IT ▶▶' : '◀◀ SEND IT' });
-        yield 0.85;
-        yield* ride(dir > 0 ? AX0 - 60 : AX1 + 60, y, dir > 0 ? AX1 + 60 : AX0 - 60, y, 780, a => { if (Math.random() < 0.6) eb(b.x, b.y + 8, a + Math.PI + rand(-0.7, 0.7), rand(80, 170), gravel); });
+        warnRect(AX0, y - 30, AX1 - AX0, 60, 1.05, 0, { label: dir > 0 ? 'SEND IT ▶▶' : '◀◀ SEND IT' });
+        yield 1.05;
+        yield* ride(dir > 0 ? AX0 - 60 : AX1 + 60, y, dir > 0 ? AX1 + 60 : AX0 - 60, y, 700, a => { if (Math.random() < 0.6) eb(b.x, b.y + 8, a + Math.PI + rand(-0.7, 0.7), rand(80, 170), gravel); });
         yield 0.3;
       }
       yield* rollIn();
@@ -1509,8 +1509,8 @@ BOSSES.nick = () => {
       for (let k = 0; k < 2; k++) {
         const a = rand(0, TAU), dx = Math.cos(a), dy = Math.sin(a), P = { x: G.p.x, y: G.p.y };
         const s = edgeOut(P, -dx, -dy), e = edgeOut(P, dx, dy);
-        warnLine(s.x, s.y, e.x, e.y, 50, 0.9, 0); yield 0.9;
-        yield* ride(s.x, s.y, e.x, e.y, 840, an => { if (Math.random() < 0.5) for (const g of [-1, 1]) eb(b.x, b.y, an + g * Math.PI / 2, 90, gravel); });
+        warnLine(s.x, s.y, e.x, e.y, 50, 1.1, 0); yield 1.1;
+        yield* ride(s.x, s.y, e.x, e.y, 760, an => { if (Math.random() < 0.5) for (const g of [-1, 1]) eb(b.x, b.y, an + g * Math.PI / 2, 90, gravel); });
         yield 0.3;
       }
       yield* rollIn();
@@ -1519,8 +1519,8 @@ BOSSES.nick = () => {
       say(b, 'Bunny hop!', 1.2);
       for (let k = 0; k < 3; k++) {
         const t = { x: clamp(G.p.x + rand(-40, 40), AX0 + 40, AX1 - 40), y: clamp(G.p.y + rand(-40, 40), AY0 + 40, AY1 - 40) }, x0 = b.x, y0 = b.y;
-        warnCircle(t.x, t.y, 64, 0.95, 1, { msg: 'LANDED ON' }); b.mode = 'air'; b.face = t.x >= x0 ? 1 : -1;
-        for (let s = 0; s <= 1.0001; s += 0.05) { b.x = lerp(x0, t.x, s); b.y = lerp(y0, t.y, s); b.air = Math.sin(s * Math.PI) * 70; yield 0.0475; }
+        warnCircle(t.x, t.y, 64, 1.15, 1, { msg: 'LANDED ON' }); b.mode = 'air'; b.face = t.x >= x0 ? 1 : -1;
+        for (let s = 0; s <= 1.0001; s += 0.05) { b.x = lerp(x0, t.x, s); b.y = lerp(y0, t.y, s); b.air = Math.sin(s * Math.PI) * 70; yield 0.0575; }
         b.air = 0; ring(b.x, b.y, 12, 170, rand(0, 1), Object.assign({}, gravel, { r: 5, life: 3 })); b.mode = 'idle'; yield 0.45;
       }
     },
@@ -2023,7 +2023,7 @@ function enterRoom(kind) {
   AU.mode = kind === 'boss' ? 'boss' : (kind === 'bakery' || kind === 'busker') ? 'cafe' : 'calm';
   AU.bpm = G.run.bpm + (kind === 'boss' ? 18 : 0);
   G.fade = 1; G.camSnap = true;
-  if (kind === 'boss') { G.boss = BOSSES[G.run.bOrder[G.run.d]](); }
+  if (kind === 'boss') { G.boss = BOSSES[G.run.bOrder[G.run.d]](); if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + 3); floatText(p.x, p.y - 34, '+3 CHEESE · PRE-BOSS SNACK', '#E3001B'); } }
   else if ((kind === 'combat' || kind === 'elite') && Math.random() < 0.5) nachoSay(pick(ROOM_QUIPS), 1.8);
   if (kind === 'elite') floatText(CX, CY, 'PREMIUM ROOM · TOUGHER GHOULS', '#A87C00');
 }
